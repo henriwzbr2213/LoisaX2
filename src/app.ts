@@ -12,6 +12,8 @@ import { createAdminRoutes } from './routes/admin.routes.js';
 import { createClientRoutes } from './routes/client.routes.js';
 import { AppError } from './core/errors.js';
 import { logger } from './core/logger.js';
+import { SessionService } from './modules/auth/session.service.js';
+import { createAuthRoutes } from './routes/auth.routes.js';
 
 export function createApp() {
   const app = express();
@@ -26,6 +28,7 @@ export function createApp() {
   const auditService = new AuditService(auditRepository);
   const serverService = new ServerService(serverRepository, userRepository, featherPanelService, auditService);
   const provisioningService = new ProvisioningService(userService, serverService, auditService);
+  const sessionService = new SessionService();
 
   userService.seedAdmin({
     id: 'admin-1',
@@ -38,8 +41,22 @@ export function createApp() {
     role: 'admin'
   });
 
+  userRepository.save({
+    id: 'client-1',
+    email: 'client@local',
+    username: 'client',
+    firstName: 'Demo',
+    lastName: 'Client',
+    externalId: 'demo-client',
+    featherId: 2,
+    role: 'client',
+    createdAt: new Date()
+  });
+
   app.get('/health', (_req, res) => res.json({ ok: true }));
-  app.use(createAuthMiddleware(userRepository));
+  app.use('/', express.static('src/public'));
+  app.use('/auth', createAuthRoutes(sessionService, userRepository));
+  app.use(createAuthMiddleware(userRepository, sessionService));
 
   app.use('/admin', createAdminRoutes(provisioningService, serverService, auditService));
   app.use('/client', createClientRoutes(serverService));

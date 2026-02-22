@@ -1,6 +1,6 @@
 # LoisaX2 FeatherPanel Integration
 
-Backend TypeScript modular para integração estilo Pterodactyl com FeatherPanel.
+Backend TypeScript modular para integração estilo Pterodactyl com FeatherPanel + frontend de operação.
 
 ## Recursos implementados
 
@@ -11,7 +11,14 @@ Backend TypeScript modular para integração estilo Pterodactyl com FeatherPanel
 - Separação de painéis: `/admin` e `/client`.
 - Validação de ownership para operações de cliente.
 - Retry exponencial + tratamento estruturado de erro e rate limit.
+- Frontend simples em `src/public/index.html` com login e ações admin/client.
 - Auditoria e arquitetura preparada para produção (módulos, logs, validação, env).
+
+## Fluxo de uso rápido
+
+1. Acesse `GET /` para o frontend.
+2. Faça login via UI (usa `POST /auth/login`).
+3. Use os botões de Client/Admin panel sem precisar enviar `x-user-id` manualmente.
 
 ## Fluxo de provisionamento
 
