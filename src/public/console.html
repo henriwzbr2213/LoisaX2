@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Console | LoisaX2</title>
+  <style>
+    :root{--bg:#000;--panel:#090909;--card:#0d0d0d;--line:#202020;--text:#f4f4f5;--muted:#a1a1aa;--ok:#22c55e;--warn:#eab308;--err:#ef4444}
+    *{box-sizing:border-box} body{margin:0;background:#000;color:var(--text);font-family:Inter,system-ui,Segoe UI,Arial,sans-serif}
+    .wrap{padding:18px}
+    .crumb{color:#a1a1aa;font-size:14px;margin-bottom:12px}
+    .top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+    .title{font-size:34px;font-weight:700;letter-spacing:-.02em}
+    .sub{color:var(--muted)}
+    .btn{background:#111;border:1px solid #262626;color:#fff;padding:10px 13px;border-radius:10px;cursor:pointer}
+    .btn.ok{background:#14532d;border-color:#166534}.btn.warn{background:#78350f;border-color:#92400e}.btn.err{background:#7f1d1d;border-color:#991b1b}
+    .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:12px 0}
+    .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px}
+    .stat b{display:block;font-size:28px;margin-top:6px}
+    .console{background:#050505;border:1px solid #202020;border-radius:12px;overflow:hidden}
+    .consoleHead{padding:12px 14px;border-bottom:1px solid #202020;display:flex;justify-content:space-between;align-items:center}
+    pre{margin:0;height:420px;overflow:auto;padding:12px 14px;color:#d4fdd9;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.45}
+    .cmd{display:flex;gap:8px;padding:10px;border-top:1px solid #202020}
+    .cmd input{flex:1;background:#0b0b0b;border:1px solid #252525;border-radius:10px;color:#fff;padding:10px}
+    @media (max-width:980px){.grid{grid-template-columns:1fr 1fr}.title{font-size:28px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="crumb">Dashboard > Servers > <span id="crumbServer">...</span> > Console</div>
+
+    <div class="top">
+      <div>
+        <div class="title" id="serverName">Console</div>
+        <div class="sub">Server management console em tempo real</div>
+      </div>
+      <div>
+        <button class="btn ok" onclick="power('start')">Start Server</button>
+        <button class="btn warn" onclick="power('restart')">Restart Server</button>
+        <button class="btn err" onclick="power('stop')">Stop Server</button>
+        <button class="btn" onclick="location.href='/panel.html'">Voltar</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="stat">Identifier<b id="sIdentifier">-</b></div>
+      <div class="stat">Status<b id="sStatus">-</b></div>
+      <div class="stat">Memory<b id="sMemory">-</b></div>
+      <div class="stat">Disk<b id="sDisk">-</b></div>
+      <div class="stat">CPU<b id="sCpu">-</b></div>
+    </div>
+
+    <section class="console">
+      <div class="consoleHead">
+        <strong>Console</strong>
+        <span id="wsState" style="color:#a1a1aa">offline</span>
+      </div>
+      <pre id="log"></pre>
+      <div class="cmd">
+        <input id="command" placeholder="Digite um comando e pressione Enter" />
+        <button class="btn" onclick="sendCommand()">Enviar</button>
+      </div>
+    </section>
+  </div>
+
+<script>
+const token=localStorage.getItem('lx_token');
+const user=JSON.parse(localStorage.getItem('lx_user')||'null');
+if(!token || !user){ location.href='/login.html'; }
+
+const params = new URLSearchParams(location.search);
+const identifier = params.get('identifier');
+if(!identifier){ location.href='/panel.html'; }
+
+const prefix = user.role==='admin' ? '/admin' : '/client';
+const log = document.getElementById('log');
+const wsState = document.getElementById('wsState');
+let ws = null;
+
+function addLine(line){
+  log.textContent += `${line}\n`;
+  log.scrollTop = log.scrollHeight;
+}
+
+async function api(path, options={}) {
+  const headers={'Content-Type':'application/json','Authorization':`Bearer ${token}`,...(options.headers||{})};
+  const res = await fetch(path,{...options,headers});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok) throw data;
+  return data;
+}
+
+async function loadServer(){
+  const servers = await api(prefix + '/servers');
+  const s = servers.find(x => x.featherIdentifier === identifier);
+  document.getElementById('serverName').textContent = (identifier || 'Console').replace(/[-_]/g,' ');
+  document.getElementById('crumbServer').textContent = identifier;
+  document.getElementById('sIdentifier').textContent = identifier;
+  document.getElementById('sStatus').textContent = s?.status || '-';
+  document.getElementById('sMemory').textContent = `${s?.memory ?? 0} MB`;
+  document.getElementById('sDisk').textContent = `${s?.disk ?? 0} MB`;
+  document.getElementById('sCpu').textContent = `${s?.cpu ?? 0}%`;
+}
+
+async function power(signal){
+  try{
+    await api(`${prefix}/servers/${identifier}/power`,{method:'POST',body:JSON.stringify({signal})});
+    addLine(`[power] signal enviado: ${signal}`);
+  }catch(e){
+    addLine(`[erro power] ${(e&&e.message)||'falha'}`);
+  }
+}
+
+function sendCommand(){
+  const value=document.getElementById('command').value.trim();
+  if(!value || !ws || ws.readyState!==1) return;
+  ws.send(JSON.stringify({event:'send command',args:[value]}));
+  addLine(`> ${value}`);
+  document.getElementById('command').value='';
+}
+
+document.getElementById('command').addEventListener('keydown', (ev)=>{
+  if(ev.key==='Enter') sendCommand();
+});
+
+async function connectConsole(){
+  try{
+    const creds = await api(`${prefix}/servers/${identifier}/console`);
+    const socketUrl = creds?.data?.socket;
+    const wsToken = creds?.data?.token;
+
+    if(!socketUrl || !wsToken){
+      addLine('[erro] credenciais websocket inválidas');
+      return;
+    }
+
+    ws = new WebSocket(socketUrl);
+
+    ws.onopen = () => {
+      wsState.textContent='online';
+      wsState.style.color='#22c55e';
+      ws.send(JSON.stringify({ event:'auth', args:[wsToken] }));
+      addLine('[ws] conectado');
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.event === 'console output' && Array.isArray(payload.args)) {
+          for (const line of payload.args) addLine(line);
+          return;
+        }
+        if (payload.event === 'status' && Array.isArray(payload.args)) {
+          document.getElementById('sStatus').textContent = payload.args[0] || '-';
+          addLine(`[status] ${payload.args[0]}`);
+          return;
+        }
+        addLine(typeof event.data === 'string' ? event.data : '[ws] mensagem recebida');
+      } catch {
+        addLine(typeof event.data === 'string' ? event.data : '[ws] binary message');
+      }
+    };
+
+    ws.onerror = () => {
+      wsState.textContent='erro';
+      wsState.style.color='#ef4444';
+      addLine('[ws] erro na conexão');
+    };
+
+    ws.onclose = () => {
+      wsState.textContent='offline';
+      wsState.style.color='#a1a1aa';
+      addLine('[ws] desconectado');
+    };
+  }catch(e){
+    addLine(`[erro console] ${(e&&e.message)||'falha ao abrir console'}`);
+  }
+}
+
+loadServer().then(connectConsole);
+</script>
+</body>
+</html>

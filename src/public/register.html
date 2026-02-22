@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Register | LoisaX2</title>
+  <style>
+    :root{--bg:#f5f5f7;--text:#111111;--muted:#666b76;--line:#e5e7eb;--card:#ffffff}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);font-family:"Inter","Geist","SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);font-weight:400;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+    .center{min-height:100vh;display:grid;place-items:center;padding:24px}
+    .card{width:100%;max-width:388px;text-align:center}
+    .logo{width:72px;height:72px;border-radius:999px;background:#111;display:grid;place-items:center;color:#fff;font-weight:600;font-size:24px;margin:0 auto 20px;letter-spacing:-.02em}
+    h1{margin:0 0 10px;font-size:46px;line-height:1.02;font-weight:600;letter-spacing:-0.035em}
+    p{margin:0 0 20px;color:var(--muted);font-size:16px;font-weight:400}
+    input,button{width:100%;padding:13px 14px;border-radius:11px;border:1px solid var(--line);font-size:15px;box-sizing:border-box;font-weight:400}
+    input{margin:8px 0;background:var(--card);color:#151515}
+    input::placeholder{color:#9ca3af}
+    button{background:#111;color:#fff;border-color:#111;font-weight:500;cursor:pointer;margin-top:10px;letter-spacing:-0.01em}
+    .muted{font-size:14px;color:var(--muted);margin-top:14px;min-height:18px;font-weight:400}
+    .bottom{margin-top:20px;font-size:15px;color:var(--muted)}
+    .bottom a{color:#2563eb;text-decoration:none;font-weight:500}
+  </style>
+</head>
+<body>
+  <div class="center">
+    <div class="card">
+      <div class="logo">LX</div>
+      <h1>Cadastro</h1>
+      <p>Crie sua conta. A primeira conta será admin.</p>
+      <input id="email" placeholder="name@work-email.com" />
+      <input id="username" placeholder="username" />
+      <input id="firstName" placeholder="Nome" />
+      <input id="lastName" placeholder="Sobrenome" />
+      <input id="password" type="password" placeholder="Senha (min 6)" />
+      <button onclick="register()">Create account</button>
+      <div id="msg" class="muted"></div>
+      <div class="bottom">Já tem conta? <a href="/login.html">Entrar</a></div>
+    </div>
+  </div>
+  <script>
+    async function register(){
+      const msg=document.getElementById('msg');
+      msg.textContent='Criando conta...';
+      try{
+        const res=await fetch('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+          email:email.value,username:username.value,firstName:firstName.value,lastName:lastName.value,password:password.value
+        })});
+        const data=await res.json();
+        if(!res.ok) throw data;
+        localStorage.setItem('lx_token', data.token);
+        localStorage.setItem('lx_user', JSON.stringify(data.user));
+        location.href='/panel.html';
+      }catch(e){ msg.textContent=(e&&e.message)?e.message:'Falha ao cadastrar'; }
+    }
+  </script>
+</body>
+</html>
