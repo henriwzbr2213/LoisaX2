@@ -7,6 +7,7 @@ export type User = {
   firstName: string;
   lastName: string;
   externalId: string;
+  passwordHash: string;
   featherId: number;
   role: Role;
   createdAt: Date;

@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard | LoisaX2</title>
+  <style>
+    :root{--bg:#000000;--panel:#050505;--card:#0b0b0b;--line:#1a1a1a;--text:#f3f4f6;--muted:#a1a1aa;--green:#22c55e;--yellow:#eab308;--red:#ef4444}
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,Segoe UI,Arial,sans-serif;background:#000;color:var(--text)}
+    .layout{display:grid;grid-template-columns:64px 1fr;min-height:100vh}
+    .sidebar{border-right:1px solid #171717;background:#050505;padding:10px;display:flex;flex-direction:column;gap:10px;align-items:center}
+    .sidebtn{width:40px;height:40px;border-radius:10px;border:1px solid #242424;background:#0b0b0b;color:#fff;display:grid;place-items:center;font-size:12px}
+    .content{display:flex;flex-direction:column}
+    .topbar{height:64px;border-bottom:1px solid #171717;display:flex;align-items:center;justify-content:space-between;padding:0 18px;background:#050505}
+    .title{font-weight:600;font-size:22px;letter-spacing:-.02em}
+    .user{color:var(--muted);font-size:14px;display:flex;gap:10px;align-items:center}
+    .main{padding:18px}
+    .notice{background:#0f0f0f;border:1px solid #232323;color:#d4d4d8;padding:14px 16px;border-radius:12px;margin-bottom:18px}
+    .toolbar{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+    .btn{background:#0f0f0f;border:1px solid #2a2a2a;color:#e4e4e7;border-radius:10px;padding:9px 12px;cursor:pointer}
+    .btn.primary{background:#121212;border-color:#343434}
+    .search{flex:1;min-width:220px;background:#0d0d0d;border:1px solid #2a2a2a;color:#f4f4f5;padding:10px 12px;border-radius:10px}
+    .servers{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+    .server{background:linear-gradient(160deg,#0c0c0c,#090909 60%,#070707);border:1px solid #222;border-radius:14px;overflow:hidden;cursor:pointer;transition:.18s transform,.18s border-color}
+    .server:hover{transform:translateY(-2px);border-color:#353535}
+    .head{padding:14px;border-bottom:1px solid #1d1d1d;display:flex;justify-content:space-between;align-items:flex-start}
+    .name{font-size:28px;font-weight:700;letter-spacing:-.02em}
+    .desc{color:var(--muted);font-size:13px;margin-top:2px}
+    .dot{width:10px;height:10px;border-radius:999px;background:var(--green);box-shadow:0 0 10px var(--green)}
+    .meta{padding:12px 14px;color:#a1a1aa;font-size:13px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:0 14px 14px}
+    .pill{background:#101010;border:1px solid #232323;border-radius:10px;padding:9px;font-size:12px}
+    .pill b{display:block;color:#fff;font-size:18px;font-weight:700}
+    .footer{padding:0 14px 14px;color:#a1a1aa;font-size:12px;text-align:right}
+    .hidden{display:none!important}
+    @media (max-width:720px){.layout{grid-template-columns:1fr}.sidebar{display:none}.title{font-size:19px}.name{font-size:23px}}
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebtn">LX</div>
+      <div class="sidebtn">🏠</div>
+      <div class="sidebtn">⚙️</div>
+    </aside>
+
+    <section class="content">
+      <header class="topbar">
+        <div class="title">Dashboard</div>
+        <div class="user">
+          <span id="who"></span>
+          <button class="btn" onclick="logout()">Sair</button>
+        </div>
+      </header>
+
+      <main class="main">
+        <div class="notice">Clique em um servidor para abrir o console em tempo real via API/WebSocket do FeatherPanel.</div>
+
+        <div class="toolbar">
+          <button class="btn" onclick="loadServers()">Refresh</button>
+          <button id="adminBtn" class="btn primary hidden" onclick="loadAdminServers()">View All Servers</button>
+          <input id="search" class="search" placeholder="Search servers..." oninput="renderServers()" />
+        </div>
+
+        <div id="servers" class="servers"></div>
+      </main>
+    </section>
+  </div>
+
+<script>
+const token=localStorage.getItem('lx_token');
+const user=JSON.parse(localStorage.getItem('lx_user')||'null');
+if(!token || !user){ location.href='/login.html'; }
+const who=document.getElementById('who');
+const adminBtn=document.getElementById('adminBtn');
+const serversEl=document.getElementById('servers');
+let servers=[];
+
+who.textContent=`${user.username} (${user.role})`;
+if(user.role==='admin') adminBtn.classList.remove('hidden');
+
+async function api(path, options={}) {
+  const headers={'Content-Type':'application/json','Authorization':`Bearer ${token}`,...(options.headers||{})};
+  const res = await fetch(path,{...options,headers});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok) throw data;
+  return data;
+}
+
+function logout(){
+  localStorage.removeItem('lx_token');
+  localStorage.removeItem('lx_user');
+  location.href='/login.html';
+}
+
+function statusColor(status){
+  if(status==='running') return 'var(--green)';
+  if(status==='installing') return 'var(--yellow)';
+  if(status==='suspended') return 'var(--red)';
+  return '#9ca3af';
+}
+
+function openConsole(identifier){
+  location.href=`/console.html?identifier=${encodeURIComponent(identifier)}`;
+}
+
+function renderServers(){
+  const term=(document.getElementById('search').value||'').toLowerCase();
+  const list=servers.filter(s => (s.featherIdentifier||'').toLowerCase().includes(term) || (s.id||'').toLowerCase().includes(term));
+
+  if(!list.length){
+    serversEl.innerHTML='<div class="server" style="padding:20px">Nenhum servidor encontrado.</div>';
+    return;
+  }
+
+  serversEl.innerHTML=list.map(s=>{
+    const color=statusColor(s.status);
+    return `
+      <article class="server" onclick="openConsole('${s.featherIdentifier}')">
+        <div class="head">
+          <div>
+            <div class="name">${(s.featherIdentifier||'Servidor').replace(/[-_]/g,' ')}</div>
+            <div class="desc">No description</div>
+          </div>
+          <div class="dot" style="background:${color};box-shadow:0 0 10px ${color}"></div>
+        </div>
+        <div class="meta">
+          <span>Node: <b>${s.nodeId ?? '-'}</b></span>
+          <span>Egg: <b>${s.eggId ?? '-'}</b></span>
+          <span>Status: <b>${s.status ?? '-'}</b></span>
+        </div>
+        <div class="stats">
+          <div class="pill">Memory <b>${s.memory ?? 0} MB</b></div>
+          <div class="pill">Disk <b>${s.disk ?? 0} MB</b></div>
+          <div class="pill">CPU <b>${s.cpu ?? 0}%</b></div>
+        </div>
+        <div class="footer">Click to open console →</div>
+      </article>`;
+  }).join('');
+}
+
+async function loadServers(){
+  try{
+    servers = user.role==='admin' ? await api('/admin/servers') : await api('/client/servers');
+    renderServers();
+  }catch(e){
+    serversEl.innerHTML=`<div class="server" style="padding:20px;color:#fca5a5">${(e&&e.message)||'Erro ao carregar servidores'}</div>`;
+  }
+}
+
+async function loadAdminServers(){
+  if(user.role!=='admin') return;
+  try{
+    servers = await api('/admin/servers');
+    renderServers();
+  }catch(e){
+    serversEl.innerHTML=`<div class="server" style="padding:20px;color:#fca5a5">${(e&&e.message)||'Sem permissão'}</div>`;
+  }
+}
+
+loadServers();
+</script>
+</body>
+</html>

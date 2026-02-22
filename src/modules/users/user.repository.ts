@@ -8,12 +8,24 @@ export class UserRepository {
     return user;
   }
 
+  count(): number {
+    return this.users.size;
+  }
+
   findById(id: string): User | undefined {
     return this.users.get(id);
   }
 
   findByExternalId(externalId: string): User | undefined {
     return [...this.users.values()].find((user) => user.externalId === externalId);
+  }
+
+  findByEmail(email: string): User | undefined {
+    return [...this.users.values()].find((user) => user.email.toLowerCase() === email.toLowerCase());
+  }
+
+  findByUsername(username: string): User | undefined {
+    return [...this.users.values()].find((user) => user.username.toLowerCase() === username.toLowerCase());
   }
 
   all(): User[] {

@@ -49,6 +49,25 @@ export function createAdminRoutes(provisioningService: ProvisioningService, serv
     }
   });
 
+  router.post('/servers/:identifier/power', async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const { signal } = z.object({ signal: z.enum(['start', 'stop', 'restart']) }).parse(req.body);
+      await serverService.power(req.actor!.id, 'admin', req.params.identifier, signal);
+      return res.status(204).send();
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.get('/servers/:identifier/console', async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const credentials = await serverService.consoleCredentials(req.actor!.id, 'admin', req.params.identifier);
+      return res.json(credentials);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
   router.get('/servers', (req: AuthenticatedRequest, res) => {
     res.json(serverService.listForUser(req.actor!.id, 'admin'));
   });
